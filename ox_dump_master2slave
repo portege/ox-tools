@@ -1,0 +1,383 @@
+#!/bin/bash
+
+# dump openx tables from master to slave for replication
+# syntax: ./ox_dump_master2slave
+# boi - portege@gmai.com
+# 20130223
+# original file name : dumbdump
+
+##config
+#database
+MYSQL_USER='';
+MYSQL_PASS='';
+MYSQL_HOST=;
+MYSQL_NAME='';
+OX_PREFIX=''_; //leave underscore before semicolon;
+
+/usr/bin/mysqldump -h ${MYSQL_HOST} -u ${MYSQL_USER} -p${MYSQL_PASS} ${MYSQL_NAME} ${OX_PREFIX}accounts ${OX_PREFIX}account_preference_assoc ${OX_PREFIX}account_user_assoc ${OX_PREFIX}account_user_permission_assoc ${OX_PREFIX}acls ${OX_PREFIX}acls_channel ${OX_PREFIX}ad_category_assoc ${OX_PREFIX}ad_zone_assoc ${OX_PREFIX}affiliates ${OX_PREFIX}affiliates_extra ${OX_PREFIX}agency ${OX_PREFIX}application_variable ${OX_PREFIX}audit ${OX_PREFIX}banner_vast_element ${OX_PREFIX}banner_vast_element_seq ${OX_PREFIX}banners ${OX_PREFIX}campaigns ${OX_PREFIX}campaigns_trackers ${OX_PREFIX}category ${OX_PREFIX}channel ${OX_PREFIX}clients ${OX_PREFIX}database_action ${OX_PREFIX}ext_market_advertiser ${OX_PREFIX}ext_market_assoc_data ${OX_PREFIX}ext_market_campaign_pref ${OX_PREFIX}ext_market_general_pref ${OX_PREFIX}ext_market_plugin_variable ${OX_PREFIX}ext_market_setting ${OX_PREFIX}ext_market_stats ${OX_PREFIX}ext_market_web_stats ${OX_PREFIX}ext_market_website_pref ${OX_PREFIX}images ${OX_PREFIX}log_maintenance_forecasting ${OX_PREFIX}log_maintenance_priority ${OX_PREFIX}log_maintenance_statistics ${OX_PREFIX}password_recovery ${OX_PREFIX}placement_zone_assoc ${OX_PREFIX}preferences ${OX_PREFIX}session ${OX_PREFIX}stats_vast ${OX_PREFIX}targetstats ${OX_PREFIX}tracker_append ${OX_PREFIX}trackers ${OX_PREFIX}upgrade_action ${OX_PREFIX}userlog ${OX_PREFIX}users ${OX_PREFIX}variable_publisher ${OX_PREFIX}variables ${OX_PREFIX}z_003087cb1d158f52 ${OX_PREFIX}z_223334db3f163c42 ${OX_PREFIX}z_30bf1b1275d96c61 ${OX_PREFIX}z_b36b051f79188ed3 ${OX_PREFIX}zones > ./${MYSQL_USER}.sql
+
+#create schema for unreplicate tables
+echo "
+SET SQL_MODE=\"NO_AUTO_VALUE_ON_ZERO\";
+SET time_zone = \"+00:00\";
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_bkt_a\` (
+  \`server_conv_id\` bigint(20) NOT NULL auto_increment,
+  \`server_ip\` varchar(16) NOT NULL default '',
+  \`tracker_id\` mediumint(9) NOT NULL,
+  \`date_time\` datetime NOT NULL,
+  \`action_date_time\` datetime NOT NULL,
+  \`creative_id\` mediumint(9) NOT NULL,
+  \`zone_id\` mediumint(9) NOT NULL,
+  \`ip_address\` varchar(16) NOT NULL default '',
+  \`action\` int(10) default NULL,
+  \`window\` int(10) default NULL,
+  \`status\` int(10) default NULL,
+  PRIMARY KEY  (\`server_conv_id\`,\`server_ip\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_bkt_a_var\` (
+  \`server_conv_id\` bigint(20) NOT NULL auto_increment,
+  \`server_ip\` varchar(16) NOT NULL default '',
+  \`tracker_variable_id\` mediumint(9) NOT NULL,
+  \`value\` text,
+  \`date_time\` datetime NOT NULL,
+  PRIMARY KEY  (\`server_conv_id\`,\`server_ip\`,\`tracker_variable_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_bkt_c\` (
+  \`interval_start\` datetime NOT NULL,
+  \`creative_id\` mediumint(9) NOT NULL,
+  \`zone_id\` mediumint(9) NOT NULL,
+  \`count\` int(11) NOT NULL default '0',
+  PRIMARY KEY  (\`interval_start\`,\`creative_id\`,\`zone_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_bkt_m\` (
+  \`interval_start\` datetime NOT NULL,
+  \`creative_id\` mediumint(9) NOT NULL,
+  \`zone_id\` mediumint(9) NOT NULL,
+  \`count\` int(11) NOT NULL default '0',
+  PRIMARY KEY  (\`interval_start\`,\`creative_id\`,\`zone_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_bkt_r\` (
+  \`interval_start\` datetime NOT NULL,
+  \`creative_id\` mediumint(9) NOT NULL,
+  \`zone_id\` mediumint(9) NOT NULL,
+  \`count\` int(11) NOT NULL default '0',
+  PRIMARY KEY  (\`interval_start\`,\`creative_id\`,\`zone_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_bkt_vast_e\` (
+  \`interval_start\` datetime NOT NULL,
+  \`creative_id\` mediumint(20) NOT NULL,
+  \`zone_id\` mediumint(20) NOT NULL,
+  \`vast_event_id\` mediumint(20) NOT NULL,
+  \`count\` int(11) NOT NULL default '0',
+  PRIMARY KEY  (\`interval_start\`,\`creative_id\`,\`zone_id\`,\`vast_event_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_intermediate_ad\` (
+  \`data_intermediate_ad_id\` bigint(20) NOT NULL auto_increment,
+  \`date_time\` datetime NOT NULL,
+  \`operation_interval\` int(10) unsigned NOT NULL,
+  \`operation_interval_id\` int(10) unsigned NOT NULL,
+  \`interval_start\` datetime NOT NULL,
+  \`interval_end\` datetime NOT NULL,
+  \`ad_id\` int(10) unsigned NOT NULL,
+  \`creative_id\` int(10) unsigned NOT NULL,
+  \`zone_id\` int(10) unsigned NOT NULL,
+  \`requests\` int(10) unsigned NOT NULL default '0',
+  \`impressions\` int(10) unsigned NOT NULL default '0',
+  \`clicks\` int(10) unsigned NOT NULL default '0',
+  \`conversions\` int(10) unsigned NOT NULL default '0',
+  \`total_basket_value\` decimal(10,4) NOT NULL default '0.0000',
+  \`total_num_items\` int(11) NOT NULL default '0',
+  \`updated\` datetime NOT NULL,
+  PRIMARY KEY  (\`data_intermediate_ad_id\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_ad_id_date_time\` (\`ad_id\`,\`date_time\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_zone_id_date_time\` (\`zone_id\`,\`date_time\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_date_time\` (\`date_time\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_interval_start\` (\`interval_start\`)
+) ENGINE=MyISAM  DEFAULT CHARSET=latin1 AUTO_INCREMENT=20722850 ;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_intermediate_ad_connection\` (
+  \`data_intermediate_ad_connection_id\` bigint(20) NOT NULL auto_increment,
+  \`server_raw_ip\` varchar(16) NOT NULL default '',
+  \`server_raw_tracker_impression_id\` bigint(20) NOT NULL,
+  \`viewer_id\` varchar(32) default NULL,
+  \`viewer_session_id\` varchar(32) default NULL,
+  \`tracker_date_time\` datetime NOT NULL,
+  \`connection_date_time\` datetime default NULL,
+  \`tracker_id\` int(10) unsigned NOT NULL,
+  \`ad_id\` int(10) unsigned NOT NULL,
+  \`creative_id\` int(10) unsigned NOT NULL,
+  \`zone_id\` int(10) unsigned NOT NULL,
+  \`tracker_channel\` varchar(255) default NULL,
+  \`connection_channel\` varchar(255) default NULL,
+  \`tracker_channel_ids\` varchar(64) default NULL,
+  \`connection_channel_ids\` varchar(64) default NULL,
+  \`tracker_language\` varchar(13) default NULL,
+  \`connection_language\` varchar(13) default NULL,
+  \`tracker_ip_address\` varchar(16) default NULL,
+  \`connection_ip_address\` varchar(16) default NULL,
+  \`tracker_host_name\` varchar(255) default NULL,
+  \`connection_host_name\` varchar(255) default NULL,
+  \`tracker_country\` char(2) default NULL,
+  \`connection_country\` char(2) default NULL,
+  \`tracker_https\` int(10) unsigned default NULL,
+  \`connection_https\` int(10) unsigned default NULL,
+  \`tracker_domain\` varchar(255) default NULL,
+  \`connection_domain\` varchar(255) default NULL,
+  \`tracker_page\` varchar(255) default NULL,
+  \`connection_page\` varchar(255) default NULL,
+  \`tracker_query\` varchar(255) default NULL,
+  \`connection_query\` varchar(255) default NULL,
+  \`tracker_referer\` varchar(255) default NULL,
+  \`connection_referer\` varchar(255) default NULL,
+  \`tracker_search_term\` varchar(255) default NULL,
+  \`connection_search_term\` varchar(255) default NULL,
+  \`tracker_user_agent\` varchar(255) default NULL,
+  \`connection_user_agent\` varchar(255) default NULL,
+  \`tracker_os\` varchar(32) default NULL,
+  \`connection_os\` varchar(32) default NULL,
+  \`tracker_browser\` varchar(32) default NULL,
+  \`connection_browser\` varchar(32) default NULL,
+  \`connection_action\` int(10) unsigned default NULL,
+  \`connection_window\` int(10) unsigned default NULL,
+  \`connection_status\` int(10) unsigned NOT NULL default '4',
+  \`inside_window\` tinyint(1) NOT NULL default '0',
+  \`comments\` text,
+  \`updated\` datetime NOT NULL,
+  PRIMARY KEY  (\`data_intermediate_ad_connection_id\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_connection_tracker_date_time\` (\`tracker_date_time\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_connection_tracker_id\` (\`tracker_id\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_connection_ad_id\` (\`ad_id\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_connection_zone_id\` (\`zone_id\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_connection_viewer_id\` (\`viewer_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_intermediate_ad_variable_value\` (
+  \`data_intermediate_ad_variable_value_id\` bigint(20) NOT NULL auto_increment,
+  \`data_intermediate_ad_connection_id\` bigint(20) NOT NULL,
+  \`tracker_variable_id\` int(11) NOT NULL,
+  \`value\` varchar(50) default NULL,
+  PRIMARY KEY  (\`data_intermediate_ad_variable_value_id\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_variable_value_data_intermediate_ad_co\` (\`data_intermediate_ad_connection_id\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_variable_value_tracker_variable_id\` (\`tracker_variable_id\`),
+  KEY \`${OX_PREFIX}data_intermediate_ad_variable_value_tracker_value\` (\`value\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_raw_ad_click\` (
+  \`viewer_id\` varchar(32) default NULL,
+  \`viewer_session_id\` varchar(32) default NULL,
+  \`date_time\` datetime NOT NULL,
+  \`ad_id\` int(10) unsigned NOT NULL,
+  \`creative_id\` int(10) unsigned NOT NULL,
+  \`zone_id\` int(10) unsigned NOT NULL,
+  \`channel\` varchar(255) default NULL,
+  \`channel_ids\` varchar(64) default NULL,
+  \`language\` varchar(32) default NULL,
+  \`ip_address\` varchar(16) default NULL,
+  \`host_name\` varchar(255) default NULL,
+  \`country\` char(2) default NULL,
+  \`https\` tinyint(1) default NULL,
+  \`domain\` varchar(255) default NULL,
+  \`page\` varchar(255) default NULL,
+  \`query\` varchar(255) default NULL,
+  \`referer\` varchar(255) default NULL,
+  \`search_term\` varchar(255) default NULL,
+  \`user_agent\` varchar(255) default NULL,
+  \`os\` varchar(32) default NULL,
+  \`browser\` varchar(32) default NULL,
+  \`max_https\` tinyint(1) default NULL,
+  \`geo_region\` varchar(50) default NULL,
+  \`geo_city\` varchar(50) default NULL,
+  \`geo_postal_code\` varchar(10) default NULL,
+  \`geo_latitude\` decimal(8,4) default NULL,
+  \`geo_longitude\` decimal(8,4) default NULL,
+  \`geo_dma_code\` varchar(50) default NULL,
+  \`geo_area_code\` varchar(50) default NULL,
+  \`geo_organisation\` varchar(50) default NULL,
+  \`geo_netspeed\` varchar(20) default NULL,
+  \`geo_continent\` varchar(13) default NULL,
+  KEY \`${OX_PREFIX}data_raw_ad_click_viewer_id\` (\`viewer_id\`),
+  KEY \`${OX_PREFIX}data_raw_ad_click_date_time\` (\`date_time\`),
+  KEY \`${OX_PREFIX}data_raw_ad_click_ad_id\` (\`ad_id\`),
+  KEY \`${OX_PREFIX}data_raw_ad_click_zone_id\` (\`zone_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_raw_ad_impression\` (
+  \`viewer_id\` varchar(32) default NULL,
+  \`viewer_session_id\` varchar(32) default NULL,
+  \`date_time\` datetime NOT NULL,
+  \`ad_id\` int(10) unsigned NOT NULL,
+  \`creative_id\` int(10) unsigned NOT NULL,
+  \`zone_id\` int(10) unsigned NOT NULL,
+  \`channel\` varchar(255) default NULL,
+  \`channel_ids\` varchar(64) default NULL,
+  \`language\` varchar(32) default NULL,
+  \`ip_address\` varchar(16) default NULL,
+  \`host_name\` varchar(255) default NULL,
+  \`country\` char(2) default NULL,
+  \`https\` tinyint(1) default NULL,
+  \`domain\` varchar(255) default NULL,
+  \`page\` varchar(255) default NULL,
+  \`query\` varchar(255) default NULL,
+  \`referer\` varchar(255) default NULL,
+  \`search_term\` varchar(255) default NULL,
+  \`user_agent\` varchar(255) default NULL,
+  \`os\` varchar(32) default NULL,
+  \`browser\` varchar(32) default NULL,
+  \`max_https\` tinyint(1) default NULL,
+  \`geo_region\` varchar(50) default NULL,
+  \`geo_city\` varchar(50) default NULL,
+  \`geo_postal_code\` varchar(10) default NULL,
+  \`geo_latitude\` decimal(8,4) default NULL,
+  \`geo_longitude\` decimal(8,4) default NULL,
+  \`geo_dma_code\` varchar(50) default NULL,
+  \`geo_area_code\` varchar(50) default NULL,
+  \`geo_organisation\` varchar(50) default NULL,
+  \`geo_netspeed\` varchar(20) default NULL,
+  \`geo_continent\` varchar(13) default NULL,
+  KEY \`${OX_PREFIX}data_raw_ad_impression_viewer_id\` (\`viewer_id\`),
+  KEY \`${OX_PREFIX}data_raw_ad_impression_date_time\` (\`date_time\`),
+  KEY \`${OX_PREFIX}data_raw_ad_impression_ad_id\` (\`ad_id\`),
+  KEY \`${OX_PREFIX}data_raw_ad_impression_zone_id\` (\`zone_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_raw_ad_request\` (
+  \`viewer_id\` varchar(32) default NULL,
+  \`viewer_session_id\` varchar(32) default NULL,
+  \`date_time\` datetime NOT NULL,
+  \`ad_id\` int(10) unsigned NOT NULL,
+  \`creative_id\` int(10) unsigned NOT NULL,
+  \`zone_id\` int(10) unsigned NOT NULL,
+  \`channel\` varchar(255) default NULL,
+  \`channel_ids\` varchar(64) default NULL,
+  \`language\` varchar(32) default NULL,
+  \`ip_address\` varchar(16) default NULL,
+  \`host_name\` varchar(255) default NULL,
+  \`https\` tinyint(1) default NULL,
+  \`domain\` varchar(255) default NULL,
+  \`page\` varchar(255) default NULL,
+  \`query\` varchar(255) default NULL,
+  \`referer\` varchar(255) default NULL,
+  \`search_term\` varchar(255) default NULL,
+  \`user_agent\` varchar(255) default NULL,
+  \`os\` varchar(32) default NULL,
+  \`browser\` varchar(32) default NULL,
+  \`max_https\` tinyint(1) default NULL,
+  KEY \`${OX_PREFIX}data_raw_ad_request_viewer_id\` (\`viewer_id\`),
+  KEY \`${OX_PREFIX}data_raw_ad_request_date_time\` (\`date_time\`),
+  KEY \`${OX_PREFIX}data_raw_ad_request_ad_id\` (\`ad_id\`),
+  KEY \`${OX_PREFIX}data_raw_ad_request_zone_id\` (\`zone_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_raw_tracker_impression\` (
+  \`server_raw_tracker_impression_id\` bigint(20) NOT NULL auto_increment,
+  \`server_raw_ip\` varchar(16) NOT NULL default '',
+  \`viewer_id\` varchar(32) NOT NULL default '',
+  \`viewer_session_id\` varchar(32) default NULL,
+  \`date_time\` datetime NOT NULL,
+  \`tracker_id\` int(10) unsigned NOT NULL,
+  \`channel\` varchar(255) default NULL,
+  \`channel_ids\` varchar(64) default NULL,
+  \`language\` varchar(32) default NULL,
+  \`ip_address\` varchar(16) default NULL,
+  \`host_name\` varchar(255) default NULL,
+  \`country\` char(2) default NULL,
+  \`https\` int(10) unsigned default NULL,
+  \`domain\` varchar(255) default NULL,
+  \`page\` varchar(255) default NULL,
+  \`query\` varchar(255) default NULL,
+  \`referer\` varchar(255) default NULL,
+  \`search_term\` varchar(255) default NULL,
+  \`user_agent\` varchar(255) default NULL,
+  \`os\` varchar(32) default NULL,
+  \`browser\` varchar(32) default NULL,
+  \`max_https\` int(10) unsigned default NULL,
+  \`geo_region\` varchar(50) default NULL,
+  \`geo_city\` varchar(50) default NULL,
+  \`geo_postal_code\` varchar(10) default NULL,
+  \`geo_latitude\` decimal(8,4) default NULL,
+  \`geo_longitude\` decimal(8,4) default NULL,
+  \`geo_dma_code\` varchar(50) default NULL,
+  \`geo_area_code\` varchar(50) default NULL,
+  \`geo_organisation\` varchar(50) default NULL,
+  \`geo_netspeed\` varchar(20) default NULL,
+  \`geo_continent\` varchar(13) default NULL,
+  PRIMARY KEY  (\`server_raw_tracker_impression_id\`,\`server_raw_ip\`),
+  KEY \`${OX_PREFIX}data_raw_tracker_impression_viewer_id\` (\`viewer_id\`),
+  KEY \`${OX_PREFIX}data_raw_tracker_impression_date_time\` (\`date_time\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_raw_tracker_variable_value\` (
+  \`server_raw_tracker_impression_id\` bigint(20) NOT NULL,
+  \`server_raw_ip\` varchar(16) NOT NULL default '',
+  \`tracker_variable_id\` int(11) NOT NULL,
+  \`date_time\` datetime default NULL,
+  \`value\` varchar(50) default NULL,
+  PRIMARY KEY  (\`server_raw_tracker_impression_id\`,\`server_raw_ip\`,\`tracker_variable_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_summary_ad_hourly\` (
+  \`data_summary_ad_hourly_id\` bigint(20) NOT NULL auto_increment,
+  \`date_time\` datetime NOT NULL,
+  \`ad_id\` int(10) unsigned NOT NULL,
+  \`creative_id\` int(10) unsigned NOT NULL,
+  \`zone_id\` int(10) unsigned NOT NULL,
+  \`requests\` int(10) unsigned NOT NULL default '0',
+  \`impressions\` int(10) unsigned NOT NULL default '0',
+  \`clicks\` int(10) unsigned NOT NULL default '0',
+  \`conversions\` int(10) unsigned NOT NULL default '0',
+  \`total_basket_value\` decimal(10,4) default NULL,
+  \`total_num_items\` int(11) default NULL,
+  \`total_revenue\` decimal(10,4) default NULL,
+  \`total_cost\` decimal(10,4) default NULL,
+  \`total_techcost\` decimal(10,4) default NULL,
+  \`updated\` datetime NOT NULL,
+  PRIMARY KEY  (\`data_summary_ad_hourly_id\`),
+  KEY \`${OX_PREFIX}data_summary_ad_hourly_date_time\` (\`date_time\`),
+  KEY \`${OX_PREFIX}data_summary_ad_hourly_ad_id_date_time\` (\`ad_id\`,\`date_time\`),
+  KEY \`${OX_PREFIX}data_summary_ad_hourly_zone_id_date_time\` (\`zone_id\`,\`date_time\`)
+) ENGINE=MyISAM  DEFAULT CHARSET=latin1 AUTO_INCREMENT=20719858 ;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_summary_ad_zone_assoc\` (
+  \`data_summary_ad_zone_assoc_id\` bigint(20) NOT NULL auto_increment,
+  \`operation_interval\` int(10) unsigned NOT NULL,
+  \`operation_interval_id\` int(10) unsigned NOT NULL,
+  \`interval_start\` datetime NOT NULL,
+  \`interval_end\` datetime NOT NULL,
+  \`ad_id\` int(10) unsigned NOT NULL,
+  \`zone_id\` int(10) unsigned NOT NULL,
+  \`required_impressions\` int(10) unsigned NOT NULL,
+  \`requested_impressions\` int(10) unsigned NOT NULL,
+  \`priority\` double NOT NULL,
+  \`priority_factor\` double default NULL,
+  \`priority_factor_limited\` smallint(6) NOT NULL default '0',
+  \`past_zone_traffic_fraction\` double default NULL,
+  \`created\` datetime NOT NULL,
+  \`created_by\` int(10) unsigned NOT NULL,
+  \`expired\` datetime default NULL,
+  \`expired_by\` int(10) unsigned default NULL,
+  \`to_be_delivered\` tinyint(1) NOT NULL default '1',
+  PRIMARY KEY  (\`data_summary_ad_zone_assoc_id\`),
+  KEY \`${OX_PREFIX}data_summary_ad_zone_assoc_interval_start\` (\`interval_start\`),
+  KEY \`${OX_PREFIX}data_summary_ad_zone_assoc_interval_end\` (\`interval_end\`),
+  KEY \`${OX_PREFIX}data_summary_ad_zone_assoc_ad_id\` (\`ad_id\`),
+  KEY \`${OX_PREFIX}data_summary_ad_zone_assoc_zone_id\` (\`zone_id\`),
+  KEY \`${OX_PREFIX}data_summary_ad_zone_assoc_expired\` (\`expired\`)
+) ENGINE=MyISAM  DEFAULT CHARSET=latin1 AUTO_INCREMENT=30370250 ;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_summary_channel_daily\` (
+  \`data_summary_channel_daily_id\` bigint(20) NOT NULL auto_increment,
+  \`day\` date NOT NULL,
+  \`channel_id\` int(10) unsigned NOT NULL,
+  \`zone_id\` int(10) unsigned NOT NULL,
+  \`forecast_impressions\` int(10) unsigned NOT NULL default '0',
+  \`actual_impressions\` int(10) unsigned NOT NULL default '0',
+  PRIMARY KEY  (\`data_summary_channel_daily_id\`),
+  KEY \`${OX_PREFIX}data_summary_channel_daily_day\` (\`day\`),
+  KEY \`${OX_PREFIX}data_summary_channel_daily_channel_id\` (\`channel_id\`),
+  KEY \`${OX_PREFIX}data_summary_channel_daily_zone_id\` (\`zone_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
+CREATE TABLE IF NOT EXISTS \`${OX_PREFIX}data_summary_zone_impression_history\` (
+  \`data_summary_zone_impression_history_id\` bigint(20) NOT NULL auto_increment,
+  \`operation_interval\` int(10) unsigned NOT NULL,
+  \`operation_interval_id\` int(10) unsigned NOT NULL,
+  \`interval_start\` datetime NOT NULL,
+  \`interval_end\` datetime NOT NULL,
+  \`zone_id\` int(10) unsigned NOT NULL,
+  \`forecast_impressions\` int(10) unsigned default NULL,
+  \`actual_impressions\` int(10) unsigned default NULL,
+  \`est\` smallint(6) default NULL,
+  PRIMARY KEY  (\`data_summary_zone_impression_history_id\`),
+  KEY \`${OX_PREFIX}data_summary_zone_impression_history_operation_interval_id\` (\`operation_interval_id\`),
+  KEY \`${OX_PREFIX}data_summary_zone_impression_history_zone_id\` (\`zone_id\`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
+" >> ${MYSQL_NAME}.sql

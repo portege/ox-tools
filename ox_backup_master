@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# backup openx master database to 7 days behind
+# syntax: ./ox_backup_master
+# boi - portege@gmail.com
+# 20100414
+# original filename: myback
+
+##config
+#database
+MYSQL_USER='';
+MYSQL_PASS='';
+MYSQL_HOST=;
+MYSQL_NAME='';
+
+#general
+date_current=`date '+%F_%H'`;
+date_to_remove=`date '+%F_%H' -d '7 days ago'`;
+
+filename_sql=${MYSQL_NAME}.${date_current}.sql;
+filename_tar=${filename_sql}.tar.gz;
+filename_old=${MYSQL_NAME}.${date_to_remove}.sql.tar.gz;
+
+backup_path='./';
+
+#dump
+/usr/bin/mysqldump -h ${MYSQL_HOST} -u ${MYSQL_USER} -p${MYSQL_PASS} ${MYSQL_NAME} > ${backup_path}${filename_sql};
+
+#archive
+/bin/tar -zcPf ${backup_path}${filename_tar} ${backup_path}${filename_sql} --remove-files;
+
+#remove old dump
+if [ -e "${backup_path}${filename_old}" ]; then
+	/bin/rm -rf ${backup_path}${filename_old};
+fi
