@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# switch between httpd and nginx
+# and adjust all the permission and configuration
+# syntax: ./ox_switch_nginxhttpd
+# boi - portege@gmail.com
+# 20100430
+# original filename: mywebserver
+
+
+DOC_ROOT='/public_html/'
+
+function do_httpd(){
+	echo 'Changing ownership'
+	chown -R apache:apache ${DOC_ROOT}ox/var/cache/
+	chown -R apache:apache ${DOC_ROOT}ox/var/templates_compiled/
+	chown -R apache:apache ${DOC_ROOT}new/var/cache/
+	chown -R apache:apache ${DOC_ROOT}new/var/templates_compiled/
+	
+	chgrp apache /var/lib/php/session
+	chown -R apache:apache /var/lib/php/session/*
+
+	killall -9 php-cgi
+
+	echo 'Start/Stop services'
+	service nginx stop
+	service httpd start
+}
+
+function do_nginx(){
+	echo 'Changing ownership'
+	chown -R nginx:nginx ${DOC_ROOT}ox/var/cache/
+	chown -R nginx:nginx ${DOC_ROOT}ox/var/templates_compiled/
+	chown -R nginx:nginx ${DOC_ROOT}new/var/cache/
+	chown -R nginx:nginx ${DOC_ROOT}new/var/templates_compiled/
+	
+	chgrp nginx /var/lib/php/session
+	chown -R nginx:nginx /var/lib/php/session/*
+
+	echo 'Start/Stop services'
+	/etc/init.d/spawn-fcgi start
+
+	service httpd stop
+	service nginx start
+}
+
+case $1 in
+  'httpd')
+	do_httpd
+	;;
+  'nginx')
+	do_nginx
+	;;
+  *)
+	echo 'allowed input: [httpd or nginx]'
+	;;
+esac
